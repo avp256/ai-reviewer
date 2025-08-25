@@ -34,13 +34,6 @@
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
 
-        <!-- Lombok reduces boilerplate such as getters/setters. It's optional. -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.28</version>
-            <scope>provided</scope>
-        </dependency>
 
         <!-- Spring Boot Test starter for unit tests -->
         <dependency>
