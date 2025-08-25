@@ -9,3 +9,4 @@
 .idea
 docs/specification.md
 /src/main/resources/
+/target
