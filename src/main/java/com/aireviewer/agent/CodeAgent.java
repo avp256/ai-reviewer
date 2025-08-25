@@ -1,5 +1,6 @@
 package com.aireviewer.agent;
 
+import com.aireviewer.i18n.Messages;
 import com.aireviewer.model.AIReviewComment;
 import com.aireviewer.model.AIReviewIssue;
 import com.aireviewer.model.JiraContext;
@@ -7,10 +8,10 @@ import com.aireviewer.model.MergeRequestContext;
 
 import java.util.List;
 
-/**
- * CodeAgent performs static heuristics on the changed code. It checks for simple patterns
- * such as long methods or classes that may benefit from refactoring. For the
- * MVP we implement a few naive checks based on filenames and diff length.
+/*
+  CodeAgent performs static heuristics on the changed code. It checks for simple patterns
+  such as long methods or classes that may benefit from refactoring. For the
+  MVP we implement a few naive checks based on filenames and diff length.
  */
 import org.springframework.stereotype.Component;
 
@@ -24,14 +25,14 @@ public class CodeAgent implements Agent {
             int lines = diff.split("\n").length;
             if (lines > 300) {
                 comment.addIssue(new AIReviewIssue(
-                        "Диф містить понад 300 рядків. Великі зміни важче перевіряти і тестувати.",
-                        "Розділіть зміни на кілька менших Merge Request для полегшення ревʼю.",
-                        "Code Agent"));
+                        Messages.get("code.largeDiff.title"),
+                        Messages.get("code.largeDiff.action"),
+                        Messages.get("agent.code")));
             } else if (lines < 5) {
                 comment.addIssue(new AIReviewIssue(
-                        "Диф містить дуже мало змін. Це може бути несуттєва зміна (наприклад, форматування).",
-                        "Переконайтесь, що MR повʼязаний з Jira і має змістовний опис.",
-                        "Code Agent"));
+                        Messages.get("code.smallDiff.title"),
+                        Messages.get("code.smallDiff.action"),
+                        Messages.get("agent.code")));
             }
         }
         // Check file names for common anti‑patterns
@@ -40,9 +41,9 @@ public class CodeAgent implements Agent {
             files.stream()
                     .filter(f -> f.toLowerCase().contains("util") || f.toLowerCase().contains("helper"))
                     .forEach(f -> comment.addIssue(new AIReviewIssue(
-                            "Файл '" + f + "' виглядає як загальний утилітарний клас.",
-                            "Переконайтесь, що утилітарні класи не ростуть безконтрольно. Розгляньте застосування принципів SOLID для розділення відповідальності.",
-                            "Code Agent")));
+                            Messages.get("code.utilFile.title", f),
+                            Messages.get("code.utilFile.action"),
+                            Messages.get("agent.code"))));
         }
     }
 }

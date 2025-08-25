@@ -32,6 +32,26 @@ public class GitLabWebhookController {
     @PostMapping(path = "/webhook/gitlab")
     public ResponseEntity<String> handleWebhook(@RequestBody Map<String, Object> payload) {
         log.info("Webhook received");
+        // Validate GitLab event: only process merge_request open/update
+        try {
+            Object kind = payload.get("object_kind");
+            if (!(kind instanceof String) || !"merge_request".equals(kind)) {
+                log.info("Ignoring webhook: object_kind is not merge_request");
+                return ResponseEntity.accepted().body("Ignored: not a merge_request event");
+            }
+            Object oa = payload.get("object_attributes");
+            String action = null;
+            if (oa instanceof Map<?,?> oaMap) {
+                Object act = ((Map<?,?>) oaMap).get("action");
+                if (act instanceof String s) action = s;
+            }
+            if (action == null || !(action.equals("open") || action.equals("update"))) {
+                log.info("Ignoring merge_request event with action={}", action);
+                return ResponseEntity.accepted().body("Ignored: unsupported MR action");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to pre-validate webhook payload, proceeding cautiously: {}", e.getMessage());
+        }
         reviewProcessor.handleMergeRequestEvent(payload);
         return ResponseEntity.ok("Webhook processed");
     }

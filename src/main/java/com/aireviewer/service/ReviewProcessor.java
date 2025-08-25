@@ -5,6 +5,7 @@ import com.aireviewer.client.JiraClient;
 import com.aireviewer.model.AIReviewComment;
 import com.aireviewer.model.JiraContext;
 import com.aireviewer.model.MergeRequestContext;
+import com.aireviewer.notify.Notifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,13 +31,15 @@ public class ReviewProcessor {
     private final AggregatorService aggregatorService;
     private final JiraClient jiraClient;
     private final GitLabClient gitLabClient;
+    private final Notifier notifier;
 
     private static final Pattern JIRA_KEY_PATTERN = Pattern.compile("[A-Z][A-Z0-9]+-\\d+");
 
-    public ReviewProcessor(AggregatorService aggregatorService, JiraClient jiraClient, GitLabClient gitLabClient) {
+    public ReviewProcessor(AggregatorService aggregatorService, JiraClient jiraClient, GitLabClient gitLabClient, Notifier notifier) {
         this.aggregatorService = aggregatorService;
         this.jiraClient = jiraClient;
         this.gitLabClient = gitLabClient;
+        this.notifier = notifier;
     }
 
     /**
@@ -50,24 +53,62 @@ public class ReviewProcessor {
     public void handleMergeRequestEvent(Map<String, Object> payload) {
         try {
             log.info("Received merge request event");
-            // Extract basic merge request attributes
-            Map<String, Object> objectAttributes = (Map<String, Object>) payload.get("object_attributes");
-            Map<String, Object> project = (Map<String, Object>) payload.get("project");
-            Map<String, Object> user = (Map<String, Object>) payload.get("user");
-            if (objectAttributes == null) {
-                log.warn("No object_attributes found in webhook payload");
+            // Validate event type and action
+            Object kind = payload.get("object_kind");
+            if (!(kind instanceof String) || !"merge_request".equals(kind)) {
+                log.info("Ignoring event: object_kind={}", kind);
                 return;
             }
-            Long projectId = null;
-            if (project != null && project.get("id") != null) {
-                projectId = ((Number) project.get("id")).longValue();
-            } else if (objectAttributes.get("target_project_id") != null) {
-                projectId = ((Number) objectAttributes.get("target_project_id")).longValue();
+            Object oaRaw = payload.get("object_attributes");
+            if (!(oaRaw instanceof Map<?,?>)) {
+                log.warn("No object_attributes found or wrong type in webhook payload");
+                return;
             }
-            Long iid = objectAttributes.get("iid") != null ? ((Number) objectAttributes.get("iid")).longValue() : null;
-            String title = (String) objectAttributes.get("title");
-            String description = (String) objectAttributes.get("description");
-            String author = user != null ? (String) user.get("name") : null;
+            Map<?,?> oa = (Map<?,?>) oaRaw;
+            String action = null;
+            Object act = oa.get("action");
+            if (act instanceof String s) action = s;
+            if (action == null || !(action.equals("open") || action.equals("update"))) {
+                log.info("Ignoring MR action: {}", action);
+                return;
+            }
+
+            // Extract basic merge request attributes with null-safety
+            Map<String, Object> project = null;
+            Object prj = payload.get("project");
+            if (prj instanceof Map<?,?> pmap) {
+                //noinspection unchecked
+                project = (Map<String, Object>) pmap;
+            }
+            Map<String, Object> user = null;
+            Object usr = payload.get("user");
+            if (usr instanceof Map<?,?> umap) {
+                //noinspection unchecked
+                user = (Map<String, Object>) umap;
+            }
+
+            Long projectId = null;
+            Object pid1 = project != null ? project.get("id") : null;
+            if (pid1 instanceof Number n1) {
+                projectId = n1.longValue();
+            } else {
+                Object pid2 = oa.get("target_project_id");
+                if (pid2 instanceof Number n2) projectId = n2.longValue();
+            }
+            Long iid = null;
+            Object iidObj = oa.get("iid");
+            if (iidObj instanceof Number n) iid = n.longValue();
+            String title = null;
+            Object t = oa.get("title");
+            if (t instanceof String s) title = s;
+            String description = null;
+            Object d = oa.get("description");
+            if (d instanceof String s) description = s;
+            String author = null;
+            if (user != null) {
+                Object nm = user.get("name");
+                if (nm instanceof String s) author = s;
+            }
             // Determine Jira key from title if present
             String jiraKey = null;
             if (title != null) {
@@ -90,12 +131,32 @@ public class ReviewProcessor {
             // Post comment back to GitLab if possible
             if (projectId != null && iid != null) {
                 gitLabClient.postMergeRequestComment(projectId, iid, comment.toMarkdown());
+                log.info("Posted AI-Reviewer comment to MR projectId={}, iid={}", projectId, iid);
             } else {
                 log.warn("Missing projectId or iid; skipping posting comment");
             }
         } catch (Exception ex) {
             // Catch all exceptions to prevent pipeline failures
             log.error("Error processing merge request event: {}", ex.getMessage(), ex);
+            try {
+                Long projectId = null;
+                Long iid = null;
+                Object oa = payload.get("object_attributes");
+                if (oa instanceof Map<?, ?> oaMap) {
+                    Object pid = ((Map<?, ?>) oaMap).get("target_project_id");
+                    if (pid instanceof Number n) projectId = n.longValue();
+                    Object iidObj2 = ((Map<?, ?>) oaMap).get("iid");
+                    if (iidObj2 instanceof Number n2) iid = n2.longValue();
+                }
+                String subject = "AI-Reviewer failure";
+                String body = String.format("Review failed. MR: projectId=%s, iid=%s. Reason: %s",
+                        String.valueOf(projectId), String.valueOf(iid), ex.getMessage());
+                if (notifier != null) {
+                    notifier.notifyAdmin(subject, body);
+                }
+            } catch (Exception notifyEx) {
+                log.error("Failed to send admin notification: {}", notifyEx.getMessage(), notifyEx);
+            }
         }
     }
 }

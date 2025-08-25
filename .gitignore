@@ -8,5 +8,6 @@
 /dataSources.local.xml
 .idea
 /docs
-/src/main/resources/
+/src/main/resources/application.properties
 /target
+/logs
