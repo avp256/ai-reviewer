@@ -7,6 +7,8 @@ parts of the code review process.
 
 ## Features
 
+Supported integrations: GitLab CE 14.0.0+, Jira 7.8.1+ (tested locally).
+
 * Accepts GitLab merge request webhook events via `/webhook/gitlab`.
 * Parses the merge request metadata and extracts the Jira key from the title.
 * Retrieves basic issue information from Jira to provide business context.
