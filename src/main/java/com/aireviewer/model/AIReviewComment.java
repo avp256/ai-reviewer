@@ -95,6 +95,17 @@ public class AIReviewComment {
             }
             sb.append("\n");
         }
+        // Global source note (per spec: final 'Джерело' section)
+        List<String> uniqueSources = new ArrayList<>();
+        for (AIReviewIssue issue : issues) {
+            String src = issue.getSource();
+            if (src != null && !src.isBlank() && !uniqueSources.contains(src)) {
+                uniqueSources.add(src);
+            }
+        }
+        if (!uniqueSources.isEmpty()) {
+            sb.append("**Джерело:** ").append(String.join(", ", uniqueSources)).append("\n");
+        }
         return sb.toString();
     }
 }
