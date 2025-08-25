@@ -7,5 +7,5 @@
 /dataSources/
 /dataSources.local.xml
 .idea
-specification.md
+docs/specification.md
 /src/main/resources/
