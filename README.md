@@ -51,6 +51,34 @@ JIRA_API_TOKEN=yyyyy \
 mvn spring-boot:run
 ```
 
+## Running with Docker
+
+Build and run via Docker (Java 21 minimal image):
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+The service will be available on port 8080. Configure environment variables in docker-compose.yml or override at runtime:
+
+```bash
+GITLAB_BASE_URL=https://gitlab.example.com \
+GITLAB_API_TOKEN=xxxxx \
+JIRA_BASE_URL=https://jira.example.com \
+JIRA_USERNAME=user@example.com \
+JIRA_API_TOKEN=yyyyy \
+SMTP_HOST=smtp.example.com \
+SMTP_PORT=587 \
+SMTP_USERNAME=smtp-user \
+SMTP_PASSWORD=smtp-pass \
+SMTP_AUTH=true \
+SMTP_STARTTLS=true \
+docker compose up -d --build
+```
+
+Logs are written to /var/log/ai-reviewer inside the container. A named volume (ai-reviewer-logs) is used to persist logs across restarts.
+
 ## Limitations & next steps
 
 This MVP is intentionally minimal and contains many simplifications:
