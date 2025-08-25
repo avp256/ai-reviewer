@@ -5,6 +5,7 @@ import com.aireviewer.client.JiraClient;
 import com.aireviewer.model.AIReviewComment;
 import com.aireviewer.model.JiraContext;
 import com.aireviewer.model.MergeRequestContext;
+import com.aireviewer.notify.Notifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,13 +31,15 @@ public class ReviewProcessor {
     private final AggregatorService aggregatorService;
     private final JiraClient jiraClient;
     private final GitLabClient gitLabClient;
+    private final Notifier notifier;
 
     private static final Pattern JIRA_KEY_PATTERN = Pattern.compile("[A-Z][A-Z0-9]+-\\d+");
 
-    public ReviewProcessor(AggregatorService aggregatorService, JiraClient jiraClient, GitLabClient gitLabClient) {
+    public ReviewProcessor(AggregatorService aggregatorService, JiraClient jiraClient, GitLabClient gitLabClient, Notifier notifier) {
         this.aggregatorService = aggregatorService;
         this.jiraClient = jiraClient;
         this.gitLabClient = gitLabClient;
+        this.notifier = notifier;
     }
 
     /**
@@ -96,6 +99,25 @@ public class ReviewProcessor {
         } catch (Exception ex) {
             // Catch all exceptions to prevent pipeline failures
             log.error("Error processing merge request event: {}", ex.getMessage(), ex);
+            try {
+                Long projectId = null;
+                Long iid = null;
+                Object oa = payload.get("object_attributes");
+                if (oa instanceof Map<?, ?> oaMap) {
+                    Object pid = ((Map<?, ?>) oaMap).get("target_project_id");
+                    if (pid instanceof Number n) projectId = n.longValue();
+                    Object iidObj = ((Map<?, ?>) oaMap).get("iid");
+                    if (iidObj instanceof Number n2) iid = n2.longValue();
+                }
+                String subject = "AI-Reviewer failure";
+                String body = String.format("Review failed. MR: projectId=%s, iid=%s. Reason: %s",
+                        String.valueOf(projectId), String.valueOf(iid), ex.getMessage());
+                if (notifier != null) {
+                    notifier.notifyAdmin(subject, body);
+                }
+            } catch (Exception notifyEx) {
+                log.error("Failed to send admin notification: {}", notifyEx.getMessage(), notifyEx);
+            }
         }
     }
 }
