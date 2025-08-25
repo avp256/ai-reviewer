@@ -93,6 +93,7 @@ public class ReviewProcessor {
             // Post comment back to GitLab if possible
             if (projectId != null && iid != null) {
                 gitLabClient.postMergeRequestComment(projectId, iid, comment.toMarkdown());
+                log.info("Posted AI-Reviewer comment to MR projectId={}, iid={}", projectId, iid);
             } else {
                 log.warn("Missing projectId or iid; skipping posting comment");
             }
